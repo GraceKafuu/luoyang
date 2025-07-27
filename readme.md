@@ -1,10 +1,10 @@
 ## 模型文件
 模型文件均来自于 https://github.com/zhangluoyang/Yolo
-预训练权重已经训练好的模型文件等可以通过网盘下载
+预训练权重、已经训练好的模型文件、依赖的安装文件等通过网盘下载
 链接: https://pan.baidu.com/s/1a65cgfZ0FHX6RUw4yEJnng?pwd=1234 提取码: 1234
 ## 下载代码
 cd ~
-git clone https://github.com/zhangluoyang/Yolo.git
+git clone https://github.com/zhangluoyang/luoyang.git
 
 ## 制作镜像
 将下载好的 onnxruntime-linux-x64-gpu-cuda12-1.18.1.tgz 和 opencv-4.8.0.tar.gz 放在 docker 目录下
