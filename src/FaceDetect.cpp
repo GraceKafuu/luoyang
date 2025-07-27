@@ -20,6 +20,8 @@ FaceDetect::FaceDetect(string dir)
     this->pointNum = stoi(paramMap["point_num"]);
     int NumThread = stoi(paramMap["num_thread"]);
 
+    this->useNms = paramMap.count("need_nms") && stoi(paramMap["need_nms"]) == 0 ?  false : true;
+
     string envName = "yolo";
     this->model = new Model(onnxPath.c_str(), NumThread, envName.c_str(), this->deviceId);
     this->model->printInfo();
@@ -100,31 +102,45 @@ void FaceDetect::predict(vector<cv::Mat> images,
             }
             points.push_back(localPoints);
         }
+        if(this->useNms){
+            std::vector<int> indexes;
+            cv::dnn::NMSBoxesBatched(boxes, confidences, classIds, this->objConf, this->nmsConf, indexes);
+            std::vector<cv::Rect> outputRect;
+            std::vector<float> outputConfidence;
+            std::vector<string> outputName;
+            std::vector<std::vector<cv::Point>> outputPoint;
 
-        std::vector<int> indexes;
-        cv::dnn::NMSBoxesBatched(boxes, confidences, classIds, this->objConf, this->nmsConf, indexes);
-        std::vector<cv::Rect> outputRect;
-        std::vector<float> outputConfidence;
-        std::vector<string> outputName;
-        std::vector<std::vector<cv::Point>> outputPoint;
+            outputRect.reserve(indexes.size());
+            outputConfidence.reserve(indexes.size());
+            outputName.reserve(indexes.size());
+            outputPoints.reserve(indexes.size());
 
-        outputRect.reserve(indexes.size());
-        outputConfidence.reserve(indexes.size());
-        outputName.reserve(indexes.size());
-        outputPoints.reserve(indexes.size());
+            for (int index : indexes)
+            {
+                outputRect.push_back(boxes.at(index));
+                outputConfidence.push_back(confidences.at(index));
+                outputName.push_back(this->classNames[classIds.at(index)]);
+                outputPoint.push_back(points.at(index));
+            }
+            faceTransformers[i].reverse(outputRect, outputPoint);
 
-        for (int index : indexes)
-        {
-            outputRect.push_back(boxes.at(index));
-            outputConfidence.push_back(confidences.at(index));
-            outputName.push_back(this->classNames[classIds.at(index)]);
-            outputPoint.push_back(points.at(index));
+            outputRects.push_back(outputRect);
+            outputConfidences.push_back(outputConfidence);
+            outputNames.push_back(outputName);
+            outputPoints.push_back(outputPoint);
+        }else{
+            vector<string> outputName;
+            outputName.reserve(classIds.size());
+
+            for (int classId: classIds){
+                outputName.push_back(this->classNames[classId]);
+            }            
+            faceTransformers[i].reverse(boxes, points);
+            outputRects.push_back(boxes);
+            outputConfidences.push_back(confidences); 
+            outputNames.push_back(outputName);
+            outputPoints.push_back(points);
         }
-        faceTransformers[i].reverse(outputRect, outputPoint);
-
-        outputRects.push_back(outputRect);
-        outputConfidences.push_back(outputConfidence);
-        outputNames.push_back(outputName);
-        outputPoints.push_back(outputPoint);
+        
     }
 }

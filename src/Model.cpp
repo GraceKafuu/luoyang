@@ -39,7 +39,15 @@ Model::Model(const char *onnxPath, const int NumThread, const char *envName, con
         std::cout << "Infer model on GPU" << std::endl;
         OrtCUDAProviderOptions cudaOption;
         cudaOption.device_id = cudaId;
-        sessionOptions.SetIntraOpNumThreads(4);
+        cudaOption.arena_extend_strategy = 0;
+        cudaOption.gpu_mem_limit = 4 * 1024 * 1024 * 1024LL;  // 4GB
+        cudaOption.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
+        cudaOption.do_copy_in_default_stream = 1;
+        cudaOption.has_user_compute_stream = 0;
+        cudaOption.user_compute_stream = nullptr;
+        cudaOption.default_memory_arena_cfg = nullptr;
+
+        sessionOptions.SetIntraOpNumThreads(1);
         sessionOptions.AppendExecutionProvider_CUDA(cudaOption);
     }
 

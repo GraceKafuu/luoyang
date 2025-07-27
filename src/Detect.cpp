@@ -24,6 +24,7 @@ Detect::Detect(const string dir)
     this->nmsConf = stof(paramMap["nms_conf"]);
     this->objConf = stof(paramMap["conf_threshold"]);
     this->deviceId = stoi(paramMap["device_id"]);
+    this->useNms = paramMap.count("need_nms") && stoi(paramMap["need_nms"]) == 0 ?  false : true;
     int NumThread = stoi(paramMap["num_thread"]);
 
     string envName = "yolo";
@@ -72,7 +73,6 @@ void Detect::predict(vector<cv::Mat> images,
 
     for (int i = 0; i < predicts.size(); i++)
     {
-
         cv::Mat predict = predicts[i];
 
         vector<cv::Rect> boxes;
@@ -106,28 +106,43 @@ void Detect::predict(vector<cv::Mat> images,
             confidences.push_back(conf * clsConf);
         }
 
-        vector<int> indexes;
-        cv::dnn::NMSBoxesBatched(boxes, confidences, classIds, this->objConf, this->nmsConf, indexes);
+        if (this->useNms){
+            vector<int> indexes;
+            cv::dnn::NMSBoxesBatched(boxes, confidences, classIds, this->objConf, this->nmsConf, indexes);
 
-        vector<cv::Rect> outputRect;
-        vector<float> outputConfidence;
-        vector<string> outputName;
+            vector<cv::Rect> outputRect;
+            vector<float> outputConfidence;
+            vector<string> outputName;
 
-        outputRect.reserve(indexes.size());
-        outputConfidence.reserve(indexes.size());
-        outputName.reserve(indexes.size());
+            outputRect.reserve(indexes.size());
+            outputConfidence.reserve(indexes.size());
+            outputName.reserve(indexes.size());
 
-        for (int index : indexes)
-        {
-            outputRect.push_back(boxes.at(index));
-            outputConfidence.push_back(confidences.at(index));
-            outputName.push_back(this->classNames[classIds.at(index)]);
+            for (int index : indexes)
+            {
+                outputRect.push_back(boxes.at(index));
+                outputConfidence.push_back(confidences.at(index));
+                outputName.push_back(this->classNames[classIds.at(index)]);
+            }
+            vector<vector<cv::Point>> points;
+            transformers[i].reverse(outputRect, points);
+            outputRects.push_back(outputRect);
+            outputConfidences.push_back(outputConfidence);
+            outputNames.push_back(outputName);
+        }else{
+            vector<string> outputName;
+            outputName.reserve(classIds.size());
+
+            for (int classId: classIds){
+                outputName.push_back(this->classNames[classId]);
+            }
+
+            vector<vector<cv::Point>> points;
+            transformers[i].reverse(boxes, points);
+            outputRects.push_back(boxes);
+            outputConfidences.push_back(confidences); 
+            outputNames.push_back(outputName);
         }
-        vector<vector<cv::Point>> points;
-        transformers[i].reverse(outputRect, points);
-        outputRects.push_back(outputRect);
-        outputConfidences.push_back(outputConfidence);
-        outputNames.push_back(outputName);
     }
 }
 

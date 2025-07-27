@@ -42,4 +42,7 @@ protected:
     float objConf;
 
     int deviceId;
+
+    bool useNms;
+
 };
