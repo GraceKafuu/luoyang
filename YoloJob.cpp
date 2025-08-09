@@ -27,7 +27,7 @@ std::atomic<bool> finished(false);
 // 中断标记符
 std::atomic<bool> interrupted(false);
 // 加载延迟时间
-const int load_delay = 10;
+const int load_delay = 20;
 
 // 信号处理函数
 void signal_handler(int signal)

@@ -4,6 +4,9 @@ project(LUOYANG VERSION 0.1.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+
+
 set(OpenCV_DIR /opencv/build)
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -61,3 +64,9 @@ src/Transformer.cpp)
 target_link_libraries(luoyang_yolo_job ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so )
 target_link_libraries(luoyang_yolo_job ${OpenCV_LIBS})
 target_link_libraries(luoyang_yolo_job -lpthread)
+
+
+# add_executable(luoyang_yolo_sort YoloSort.cpp)
+# target_link_libraries(luoyang_yolo_sort ${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so )
+# target_link_libraries(luoyang_yolo_sort ${OpenCV_LIBS})
+# target_link_libraries(luoyang_yolo_sort Eigen3::Eigen)

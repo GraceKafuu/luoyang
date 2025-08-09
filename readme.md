@@ -1,16 +1,8 @@
-## 更新记录
-2025-07-27 支持yolov10无nms版本的推理
-
-## 模型文件
-模型文件均来自于 https://github.com/zhangluoyang/Yolo
-预训练权重、已经训练好的模型文件、依赖的安装文件等通过网盘下载
-链接: https://pan.baidu.com/s/1a65cgfZ0FHX6RUw4yEJnng?pwd=1234 提取码: 1234
 ## 下载代码
 cd ~
-git clone https://github.com/zhangluoyang/luoyang.git
+git clone 
 
 ## 制作镜像
-将下载好的 onnxruntime-linux-x64-gpu-cuda12-1.18.1.tgz 和 opencv-4.8.0.tar.gz 放在 docker 目录下
 cd docker
 docker build -t luoyang:v0.0.1 .
 
@@ -27,11 +19,21 @@ mkdir build
 cd build
 cmake ..
 make -j2
+
 ## 运行
-./luoyang_yolo /home/zhangluoyang/yolo_model/yolo_v6 /home/zhangluoyang/person.png
-
+### 目标检测
+./luoyang_yolo /home/zhangluoyang/yolo_model/yolo_v10 /home/zhangluoyang/sheet.jpeg
+### 人脸检测
 ./luoyang_yolo_face /home/zhangluoyang/yolo_model/yolo_v6_face /home/zhangluoyang/person.png
-
+### 姿态估计
 ./luoyang_yolo_pose /home/zhangluoyang/yolo_model/yolo_v6_pose /home/zhangluoyang/person.png
+### 目标跟踪
+./luoyang_yolo_track /home/zhangluoyang/yolo_model/yolo_v8 /home/zhangluoyang/workspace/luoyang/resource/palace.mp4
 
-./luoyang_yolo_job /home/zhangluoyang/yolo_model/yolo_v6 1 /home/zhangluoyang/caiji.mp4
+
+
+
+
+## 参考
+https://github.com/FoundationVision/ByteTrack
+

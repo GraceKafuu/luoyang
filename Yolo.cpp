@@ -37,7 +37,7 @@ void object_detection(const string& model_dir, const string& image_path, const s
         std::vector<std::vector<std::vector<float>>> pointConfidences;
         vector<cv::Mat> images;
         images.push_back(image);
-
+        
         detect.predict(images,
                       outputRects,
                       outputNames,
