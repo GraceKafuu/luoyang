@@ -1,20 +1,46 @@
 #include "Model.h"
 
+/**
+ * @brief 默认构造函数
+ */
 Model::Model(/* args */)
 {
 }
 
+/**
+ * @brief 析构函数，释放ONNX Runtime资源
+ * 
+ * 释放ONNX Runtime会话和环境资源。
+ */
 Model::~Model()
 {
     delete this->ort_session;
     delete this->env;
 }
 
+/**
+ * @brief 构造函数，在CPU上运行模型
+ * 
+ * @param onnxPath ONNX模型文件路径
+ * @param NumThread CPU推理线程数
+ * @param envName 环境名称
+ */
 Model::Model(const char *onnxPath, const int NumThread, const char *envName)
 {
     Model(onnxPath, NumThread, envName, -1);
 }
 
+/**
+ * @brief 构造函数，可选择在CPU或GPU上运行模型
+ * 
+ * 初始化ONNX Runtime环境，加载模型，并获取模型的输入输出信息。
+ * 根据cudaId参数决定在CPU还是GPU上运行模型。
+ * 
+ * @param onnxPath ONNX模型文件路径
+ * @param NumThread CPU推理线程数
+ * @param envName 环境名称
+ * @param cudaId CUDA设备ID，-1表示使用CPU
+ */
 Model::Model(const char *onnxPath, const int NumThread, const char *envName, const int cudaId)
 {
     this->onnxPath = onnxPath;
@@ -28,6 +54,7 @@ Model::Model(const char *onnxPath, const int NumThread, const char *envName, con
     auto cudaAvailable = std::find(avaiableProviders.begin(), avaiableProviders.end(), "CUDAExecutionProvider");
     sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
+    // 根据CUDA可用性和cudaId参数决定运行设备
     if (cudaId < 0 || cudaAvailable == avaiableProviders.end())
     {
         std::cout << "Your ORT build without GPU. Changle to CPU" << std::endl;
@@ -51,10 +78,12 @@ Model::Model(const char *onnxPath, const int NumThread, const char *envName, con
         sessionOptions.AppendExecutionProvider_CUDA(cudaOption);
     }
 
+    // 创建ONNX Runtime环境和会话
     this->env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, envName);
 
     this->ort_session = new Ort::Session(*this->env, onnxPath, sessionOptions);
 
+    // 获取模型输入信息
     this->num_input_nodes = this->ort_session->GetInputCount();
     vector<Ort::AllocatedStringPtr> input_names_ptr;
     input_names_ptr.reserve(this->num_input_nodes);
@@ -69,6 +98,7 @@ Model::Model(const char *onnxPath, const int NumThread, const char *envName, con
         this->input_node_dims = input_tensor_info.GetShape();
     }
 
+    // 获取模型输出信息
     this->num_output_nodes = this->ort_session->GetOutputCount();
     this->output_node_names.reserve(this->num_output_nodes);
     for (size_t i = 0; i < this->num_output_nodes; i++)
@@ -81,6 +111,7 @@ Model::Model(const char *onnxPath, const int NumThread, const char *envName, con
         this->output_node_dims = output_tensor_info.GetShape();
     }
 
+    // 计算输入和输出维度的乘积（批量大小除外）
     this->input_dim_product = 1L;
     for (int64_t d = 1; d < this->input_node_dims.size(); d++)
     {
@@ -92,36 +123,73 @@ Model::Model(const char *onnxPath, const int NumThread, const char *envName, con
         this->output_dim_produt = this->output_dim_produt * this->output_node_dims.at(d);
     }
 }
+
+/**
+ * @brief 获取输入节点数量
+ * 
+ * @return const size_t 输入节点数量
+ */
 const size_t Model::getInputNum()
 {
     return this->num_input_nodes;
 }
 
+/**
+ * @brief 获取输入节点名称列表
+ * 
+ * @return const vector<string> 输入节点名称列表
+ */
 const vector<string> Model::getInputNames()
 {
     return this->input_node_names;
 }
 
+/**
+ * @brief 获取输入节点维度信息
+ * 
+ * @return const vector<int64_t> 输入节点维度信息
+ */
 const vector<int64_t> Model::getInputDims()
 {
     return this->input_node_dims;
 }
 
+/**
+ * @brief 获取输出节点数量
+ * 
+ * @return const size_t 输出节点数量
+ */
 const size_t Model::getOutputNum()
 {
     return this->num_output_nodes;
 }
 
+/**
+ * @brief 获取输出节点名称列表
+ * 
+ * @return const vector<string> 输出节点名称列表
+ */
 const vector<string> Model::getOutputNames()
 {
     return this->output_node_names;
 }
 
+/**
+ * @brief 获取输出节点维度信息
+ * 
+ * @return const vector<int64_t> 输出节点维度信息
+ */
 const vector<int64_t> Model::getOutputNodeDims()
 {
     return this->output_node_dims;
 }
 
+/**
+ * @brief 打印模型信息
+ * 
+ * 打印模型路径、环境名称、线程数以及输入输出节点的详细信息，
+ * 包括每个节点的名称和维度信息。
+ */
 void Model::printInfo()
 {
     cout << "onnxPath = " << this->onnxPath << endl;
@@ -153,6 +221,15 @@ void Model::printInfo()
     }
 }
 
+/**
+ * @brief 执行模型推理
+ * 
+ * 对输入的预处理图像进行批量推理，返回模型输出结果。
+ * 主要步骤包括：构建输入张量、执行推理、处理输出张量。
+ * 
+ * @param images 预处理后的输入图像列表
+ * @return vector<cv::Mat> 推理结果，每个元素对应一个样本的输出
+ */
 vector<cv::Mat> Model::predict(vector<cv::Mat> images)
 {
     int64_t batch_size = images.size();
@@ -163,7 +240,7 @@ vector<cv::Mat> Model::predict(vector<cv::Mat> images)
     size_t outputTensorSize = this->output_dim_produt * batch_size;
     vector<float> outputTensorValues(outputTensorSize);
 
-    // Copy image processed to InputTensorValues
+    // 将图像数据复制到输入张量中
     for (int i = 0; i < batch_size; ++i)
     {
         copy(images[i].begin<float>(),
@@ -174,12 +251,15 @@ vector<cv::Mat> Model::predict(vector<cv::Mat> images)
     vector<Ort::Value> inputTensors;
     vector<Ort::Value> outputTensors;
 
+    // 构建输入张量形状（添加批量维度）
     vector<int64_t> inputShape = this->input_node_dims;
     inputShape.at(0) = batch_size;
 
+    // 构建输出张量形状（添加批量维度）
     vector<int64_t> outputShape = this->output_node_dims;
     outputShape.at(0) = batch_size;
 
+    // 创建输入和输出张量
     Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
     inputTensors.push_back(Ort::Value::CreateTensor<float>(memoryInfo,
                                                            inputTensorValues.data(),
@@ -192,6 +272,7 @@ vector<cv::Mat> Model::predict(vector<cv::Mat> images)
                                                             outputShape.data(),
                                                             outputShape.size()));
 
+    // 构建输入和输出节点名称列表
     vector<const char *> inputNames(this->input_node_names.size(), nullptr);
     for (int i = 0; i < this->input_node_names.size(); i++)
     {
@@ -204,6 +285,7 @@ vector<cv::Mat> Model::predict(vector<cv::Mat> images)
         outputNames[i] = this->output_node_names[i].c_str();
     }
 
+    // 执行模型推理
     this->ort_session->Run(Ort::RunOptions{nullptr},
                            inputNames.data(),
                            inputTensors.data(),
@@ -212,6 +294,7 @@ vector<cv::Mat> Model::predict(vector<cv::Mat> images)
                            outputTensors.data(),
                            this->num_output_nodes);
 
+    // 处理推理结果
     vector<cv::Mat> predicts;
     for (int batch_id = 0; batch_id < batch_size; batch_id++)
     {
@@ -226,11 +309,21 @@ vector<cv::Mat> Model::predict(vector<cv::Mat> images)
     return predicts;
 }
 
+/**
+ * @brief 获取输入维度乘积
+ * 
+ * @return int64_t 输入维度乘积（不包括批量大小维度）
+ */
 int64_t Model::getInputDimProduct()
 {
     return this->input_dim_product;
 }
 
+/**
+ * @brief 获取输出维度乘积
+ * 
+ * @return int64_t 输出维度乘积（不包括批量大小维度）
+ */
 int64_t Model::getOutputDimProduct()
 {
     return this->output_dim_produt;

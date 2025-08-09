@@ -1,15 +1,29 @@
 #include "Detect.h"
 
+/**
+ * @brief 默认构造函数
+ */
 Detect::Detect(/* args */)
 {
 }
 
+/**
+ * @brief 析构函数，释放模型资源
+ */
 Detect::~Detect()
 {
     std::cout << "模型释放资源 " << std::endl;
     delete this->model;
 }
 
+/**
+ * @brief 带参数的构造函数，初始化检测器
+ * 
+ * 从指定目录加载模型文件、类别名称文件和参数配置文件，
+ * 并根据配置参数创建模型实例。
+ * 
+ * @param dir 模型文件所在目录路径
+ */
 Detect::Detect(const string dir)
 {
 
@@ -32,23 +46,59 @@ Detect::Detect(const string dir)
     this->model->printInfo();
 }
 
+/**
+ * @brief 获取非极大值抑制置信度阈值
+ * 
+ * @return float NMS置信度阈值
+ */
 float Detect::getNmsConf()
 {
     return this->nmsConf;
 }
+
+/**
+ * @brief 获取目标置信度阈值
+ * 
+ * @return float 目标置信度阈值
+ */
 float Detect::getObjConf()
 {
     return this->objConf;
 }
+
+/**
+ * @brief 获取批处理大小
+ * 
+ * @return int 批处理大小
+ */
 int Detect::getBatchSize()
 {
     return this->batchSize;
 }
 
+/**
+ * @brief 获取类别数量
+ * 
+ * @return int 类别数量
+ */
 int Detect::getClassNum()
 {
     return this->classNames.size();
 }
+
+/**
+ * @brief 执行目标检测预测
+ * 
+ * 对输入图像进行预处理，使用模型进行推理，并对结果进行后处理，
+ * 包括置信度过滤和非极大值抑制等操作。
+ * 
+ * @param images 输入图像列表
+ * @param outputRects 输出检测框列表
+ * @param outputNames 输出类别名称列表
+ * @param outputConfidences 输出置信度列表
+ * @param outputPoints 输出关键点列表
+ * @param outputPointConfidences 输出关键点置信度列表
+ */
 void Detect::predict(vector<cv::Mat> images,
                      vector<vector<cv::Rect>> &outputRects,
                      vector<vector<string>> &outputNames,
@@ -56,11 +106,13 @@ void Detect::predict(vector<cv::Mat> images,
                      vector<vector<vector<cv::Point>>> &outputPoints,
                      vector<vector<vector<float>>> &outputPointConfidences)
 {
+    // 创建图像变换器和预处理后的图像列表
     vector<Transformer> transformers;
     transformers.reserve(images.size());
     vector<cv::Mat> inputImages;
     inputImages.reserve(images.size());
 
+    // 对每张图像进行预处理
     for (cv::Mat image : images)
     {
         Transformer transformer(image, this->model->getInputDims().at(2), this->model->getInputDims().at(3));
@@ -69,8 +121,10 @@ void Detect::predict(vector<cv::Mat> images,
         transformers.push_back(transformer);
     }
 
+    // 使用模型进行推理
     vector<cv::Mat> predicts = this->model->predict(inputImages);
 
+    // 处理每个推理结果
     for (int i = 0; i < predicts.size(); i++)
     {
         cv::Mat predict = predicts[i];
@@ -79,6 +133,7 @@ void Detect::predict(vector<cv::Mat> images,
         vector<int> classIds;
         vector<float> confidences;
 
+        // 解析模型输出，提取检测框、类别和置信度
         for (int i = 0; i < predict.rows; i++)
         {
             float conf = predict.at<float>(i, 4);
@@ -106,6 +161,7 @@ void Detect::predict(vector<cv::Mat> images,
             confidences.push_back(conf * clsConf);
         }
 
+        // 根据是否使用NMS进行不同处理
         if (this->useNms){
             vector<int> indexes;
             cv::dnn::NMSBoxesBatched(boxes, confidences, classIds, this->objConf, this->nmsConf, indexes);
@@ -118,6 +174,7 @@ void Detect::predict(vector<cv::Mat> images,
             outputConfidence.reserve(indexes.size());
             outputName.reserve(indexes.size());
 
+            // 根据NMS结果提取最终检测结果
             for (int index : indexes)
             {
                 outputRect.push_back(boxes.at(index));
@@ -146,6 +203,12 @@ void Detect::predict(vector<cv::Mat> images,
     }
 }
 
+/**
+ * @brief 预热模型，执行一次推理以初始化模型
+ * 
+ * 创建一批黑色图像作为输入，执行一次完整的推理过程，
+ * 以确保模型在首次推理时的性能表现。
+ */
 void Detect::warmup()
 {
     cv::Mat image(640, 640, CV_8UC3, cv::Scalar(0, 0, 0));

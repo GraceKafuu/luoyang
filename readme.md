@@ -19,7 +19,6 @@ mkdir build
 cd build
 cmake ..
 make -j2
-
 ## 运行
 ### 目标检测
 ./luoyang_yolo /home/zhangluoyang/yolo_model/yolo_v10 /home/zhangluoyang/sheet.jpeg
@@ -30,10 +29,4 @@ make -j2
 ### 目标跟踪
 ./luoyang_yolo_track /home/zhangluoyang/yolo_model/yolo_v8 /home/zhangluoyang/workspace/luoyang/resource/palace.mp4
 
-
-
-
-
-## 参考
-https://github.com/FoundationVision/ByteTrack
 

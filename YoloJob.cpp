@@ -10,10 +10,16 @@
 #include <atomic>
 #include "include/Detect.h"
 
+/**
+ * @brief 作业结构体
+ * 
+ * 用于在生产者和消费者之间传递数据的结构体，
+ * 包含输入图像和用于返回结果的期对象
+ */
 struct Job
 {
-    cv::Mat inputImage;
-    std::shared_ptr<std::promise<cv::Mat>> outputImage;
+    cv::Mat inputImage;                              ///< 输入图像
+    std::shared_ptr<std::promise<cv::Mat>> outputImage; ///< 输出图像期对象
 };
 
 // 共享队列
@@ -29,7 +35,13 @@ std::atomic<bool> interrupted(false);
 // 加载延迟时间
 const int load_delay = 20;
 
-// 信号处理函数
+/**
+ * @brief 信号处理函数
+ * 
+ * 处理中断信号（如Ctrl+C），安全地关闭程序
+ * 
+ * @param signal 信号编号
+ */
 void signal_handler(int signal)
 {
     std::cout << "接收到信号 " << signal << ", 准备退出..." << std::endl;
@@ -42,6 +54,16 @@ void signal_handler(int signal)
     condition_v.notify_all();
 }
 
+/**
+ * @brief 显示处理结果
+ * 
+ * 显示处理后的视频帧，计算并显示FPS，并将结果写入视频文件（如果指定）
+ * 
+ * @param futures 包含处理结果的期对象向量
+ * @param frameCount 帧计数器
+ * @param start 开始时间点
+ * @param writer 视频写入器
+ */
 void display(std::vector<std::future<cv::Mat>> &futures,
              int &frameCount,
              std::chrono::_V2::system_clock::time_point &start,
@@ -68,6 +90,16 @@ void display(std::vector<std::future<cv::Mat>> &futures,
     }
 }
 
+/**
+ * @brief 视频捕获和生产者函数
+ * 
+ * 从视频文件读取帧，将其作为作业放入队列供消费者处理
+ * 
+ * @param video_path 输入视频路径
+ * @param save_path 输出视频路径（可选）
+ * @param consumer_n 消费者线程数量
+ * @param limit 队列最大容量限制
+ */
 void capture(const string& video_path, const string& save_path, const int& consumer_n, const int& limit)
 {
     // 设置信号处理
@@ -148,6 +180,14 @@ void capture(const string& video_path, const string& save_path, const int& consu
     condition_v.notify_all();
 }
 
+/**
+ * @brief 推理消费者函数
+ * 
+ * 从作业队列中获取图像，使用YOLO模型进行目标检测，并将结果返回
+ * 
+ * @param id 消费者线程ID
+ * @param model_dir 模型目录路径
+ */
 void infer(const int& id, const string& model_dir)
 {
     // 避免同时启动 (瞬时的gpu显存占用过多)
@@ -207,6 +247,11 @@ void infer(const int& id, const string& model_dir)
     }
 }
 
+/**
+ * @brief 打印使用说明
+ * 
+ * 显示程序的命令行参数使用方法和各参数的含义
+ */
 void print_usage() {
     cout << "Usage: ./luoyang_producer_consumer <model_dir> <consumer_num> <video_path> [output_path]" << endl;
     cout << "Arguments:" << endl;
@@ -216,22 +261,35 @@ void print_usage() {
     cout << "  output_path  : (Optional) Path to save output video" << endl;
 }
 
+/**
+ * @brief 主函数
+ * 
+ * 程序入口点，创建生产者和消费者线程，实现多线程视频处理
+ * 
+ * @param argc 命令行参数数量
+ * @param argv 命令行参数数组
+ */
 int main(int argc, char* argv[])
 {
+    // 检查参数数量
     if (argc < 4) {
         print_usage();
         return -1;
     }
 
+    // 解析命令行参数
     string model_dir = argv[1];
     int consumer_n = std::stoi(argv[2]);
     string video_path = argv[3];
     string output_path = (argc > 4) ? argv[4] : "";
+
+
     // 队列最大容量    
     int limit = 5 * consumer_n;
     
     std::vector<std::thread> consumers;
 
+    // 创建消费者线程
     for (int i = 0; i < consumer_n; i++)
     {
         consumers.emplace_back(infer, i, model_dir);
@@ -239,11 +297,13 @@ int main(int argc, char* argv[])
     // 等所有消费者启动好 再开始启动生产者
     std::this_thread::sleep_for(std::chrono::seconds(consumer_n == 1 ? 0 : consumer_n * load_delay));
 
+    // 创建生产者线程
     std::thread capture_thread(capture, video_path, output_path, consumer_n, limit);
 
     // 等待生产者线程结束
     capture_thread.join();
 
+    // 等待所有消费者线程结束
     for (auto &consumer : consumers)
     {
         // 等待消费者结束

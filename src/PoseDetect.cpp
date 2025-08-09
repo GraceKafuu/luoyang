@@ -1,10 +1,22 @@
 #include "PoseDetect.h"
 
 
+/**
+ * @brief 默认构造函数
+ */
 PoseDetect::PoseDetect(/* args */)
 {
 }
 
+/**
+ * @brief 带参数的构造函数，初始化姿态检测器
+ * 
+ * 从指定目录加载模型文件、类别名称文件和参数配置文件，
+ * 并根据配置参数创建模型实例。与人脸检测器不同的是，
+ * 还需要读取关键点置信度阈值参数。
+ * 
+ * @param dir 模型文件所在目录路径
+ */
 PoseDetect::PoseDetect(string dir)
 {
     string classPath = dir + "/names.txt";
@@ -31,6 +43,20 @@ PoseDetect::PoseDetect(string dir)
     this->model->printInfo();
 }
 
+/**
+ * @brief 执行姿态检测预测
+ * 
+ * 对输入图像进行预处理，使用模型进行推理，并对结果进行后处理，
+ * 包括置信度过滤、非极大值抑制和人体关键点处理等操作。
+ * 与人脸检测器不同的是，还会处理关键点置信度信息。
+ * 
+ * @param images 输入图像列表
+ * @param outputRects 输出检测框列表
+ * @param outputNames 输出类别名称列表
+ * @param outputConfidences 输出置信度列表
+ * @param outputPoints 输出关键点列表
+ * @param outputPointConfidences 输出关键点置信度列表
+ */
 void PoseDetect::predict(vector<cv::Mat> images,
                          std::vector<std::vector<cv::Rect>> &outputRects,
                          std::vector<std::vector<string>> &outputNames,
@@ -38,11 +64,13 @@ void PoseDetect::predict(vector<cv::Mat> images,
                          std::vector<std::vector<std::vector<cv::Point>>> &outputPoints,
                          std::vector<std::vector<std::vector<float>>> &outputPointConfidences)
 {
+    // 创建姿态图像变换器和预处理后的图像列表
     vector<PoseTransformer> poseTransformers;
     poseTransformers.reserve(images.size());
     vector<cv::Mat> inputImages;
     inputImages.reserve(images.size());
 
+    // 对每张图像进行预处理，使用姿态专用变换器
     for (cv::Mat image : images)
     {
         PoseTransformer transformer(image, this->model->getInputDims().at(2), this->model->getInputDims().at(3), this->pointNum);
@@ -51,8 +79,10 @@ void PoseDetect::predict(vector<cv::Mat> images,
         poseTransformers.push_back(transformer);
     }
 
+    // 使用模型进行推理
     std::vector<cv::Mat> predicts = this->model->predict(inputImages);
 
+    // 处理每个推理结果
     for (int i = 0; i < predicts.size(); i++)
     {
         cv::Mat predict = predicts[i];
@@ -63,24 +93,30 @@ void PoseDetect::predict(vector<cv::Mat> images,
         std::vector<std::vector<cv::Point>> points;
         std::vector<std::vector<float>> pointConfidences;
 
+        // 解析模型输出，提取检测框、类别、置信度、人体关键点和关键点置信度
         for (int i = 0; i < predict.rows; i++)
         {
+            // 获取目标置信度
             float conf = predict.at<float>(i, 4);
             if (conf < this->objConf)
             {
                 continue;
             }
+            
+            // 获取类别置信度
             cv::Mat classScores = predict.row(i).colRange(5 + 3 * this->pointNum, 5 + 3 * this->pointNum + this->classNames.size());
 
             cv::Point classIdPoint;
             double clsConf;
             cv::minMaxLoc(classScores, 0, &clsConf, 0, &classIdPoint);
 
+            // 综合置信度过滤
             if (conf * clsConf < this->objConf)
             {
                 continue;
             }
 
+            // 提取检测框坐标
             float cx = predict.at<float>(i, 0);
             float cy = predict.at<float>(i, 1);
             float w = predict.at<float>(i, 2);
@@ -94,6 +130,7 @@ void PoseDetect::predict(vector<cv::Mat> images,
             classIds.push_back(classIdPoint.x);
             confidences.push_back(conf * static_cast<float>(clsConf));
 
+            // 提取人体关键点坐标和关键点置信度
             std::vector<cv::Point> localPoints;
             localPoints.reserve(this->pointNum);
 
@@ -113,6 +150,8 @@ void PoseDetect::predict(vector<cv::Mat> images,
             points.push_back(localPoints);
             pointConfidences.push_back(localPointConfidence);
         }
+        
+        // 根据是否使用NMS进行不同处理
         if(this->useNms){
             std::vector<int> indexes;
             cv::dnn::NMSBoxesBatched(boxes, confidences, classIds, this->objConf, this->nmsConf, indexes);
@@ -128,6 +167,7 @@ void PoseDetect::predict(vector<cv::Mat> images,
             outputPoints.reserve(indexes.size());
             outputPointConfidence.reserve(indexes.size());
 
+            // 根据NMS结果提取最终检测结果、关键点和关键点置信度
             for (int index : indexes)
             {
                 outputRect.push_back(boxes.at(index));
@@ -136,6 +176,8 @@ void PoseDetect::predict(vector<cv::Mat> images,
                 outputPoint.push_back(points.at(index));
                 outputPointConfidence.push_back(pointConfidences.at(index));
             }
+            
+            // 对检测框和关键点进行坐标反变换
             poseTransformers[i].reverse(outputRect, outputPoint);
             outputRects.push_back(outputRect);
             outputConfidences.push_back(outputConfidence);
@@ -148,7 +190,9 @@ void PoseDetect::predict(vector<cv::Mat> images,
 
             for (int classId: classIds){
                 outputName.push_back(this->classNames[classId]);
-            }            
+            }    
+            
+            // 对检测框和关键点进行坐标反变换        
             poseTransformers[i].reverse(boxes, points);
             outputRects.push_back(boxes);
             outputConfidences.push_back(confidences); 
@@ -160,6 +204,11 @@ void PoseDetect::predict(vector<cv::Mat> images,
     }
 }
 
+/**
+ * @brief 获取关键点置信度阈值
+ * 
+ * @return float 关键点置信度阈值
+ */
 float PoseDetect::getPointConf()
 {
     return this->pointConf;
